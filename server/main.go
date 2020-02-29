@@ -6,11 +6,36 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"log"
+	"math"
 	"net"
 	"sum-grpc/calculatorpb"
 )
 
 type server struct{}
+
+func (s *server) FindMaximum(stream calculatorpb.CalculatorService_FindMaximumServer) error {
+	var max int32 = math.MinInt32
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to receive next request: %v", err)
+		}
+		log.Printf("client sent %d", req.GetNumber())
+		if max < req.GetNumber() {
+			max = req.GetNumber()
+			err := stream.Send(&calculatorpb.FindMaximumResponse{
+				Maximum: max,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to send new maximum: %v", max)
+			}
+		}
+	}
+	return nil
+}
 
 func (s *server) ComputeAverage(stream calculatorpb.CalculatorService_ComputeAverageServer) error {
 	var nums []int32

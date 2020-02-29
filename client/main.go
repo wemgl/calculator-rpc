@@ -20,8 +20,54 @@ func main() {
 		}
 	}()
 	client := calculatorpb.NewCalculatorServiceClient(clientConn)
+	// doSum(client)
 	// doPrimeNumberDecomposition(client)
-	doComputeAverage(client)
+	// doComputeAverage(client)
+	doFindMaximum(client)
+}
+
+func doFindMaximum(client calculatorpb.CalculatorServiceClient) {
+	stream, err := client.FindMaximum(context.Background())
+	if err != nil {
+		log.Fatalf("couldn't start find maximum process: %v", err)
+	}
+	nums := []int32{1, 5, 3, 6, 2, 20}
+	done := make(chan struct{})
+	go sendNums(nums, stream)
+	go receiveNums(stream, done)
+	<-done
+}
+
+func receiveNums(stream calculatorpb.CalculatorService_FindMaximumClient, done chan struct{}) {
+	for {
+		recv, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				log.Println("finishing receiving maximum numbers")
+				break
+			}
+			done <- struct{}{}
+			log.Fatalf("failed to receive next maximum value: %v", err)
+		}
+		log.Printf("next maximum value is %d", recv.GetMaximum())
+	}
+	done <- struct{}{}
+}
+
+func sendNums(nums []int32, stream calculatorpb.CalculatorService_FindMaximumClient) {
+	for _, num := range nums {
+		err := stream.Send(&calculatorpb.FindMaximumRequest{
+			Number: num,
+		})
+		if err != nil {
+			log.Fatalf("couldn't send find maximum request %d: %v", num, err)
+		}
+		log.Printf("sent %d…", num)
+	}
+	err := stream.CloseSend()
+	if err != nil {
+		log.Fatalf("failed to close sending client: %v", err)
+	}
 }
 
 func doComputeAverage(client calculatorpb.CalculatorServiceClient) {
@@ -45,20 +91,6 @@ func doComputeAverage(client calculatorpb.CalculatorServiceClient) {
 	log.Printf("the average of %v = %.2f\n", nums, response.GetResult())
 }
 
-func doSum(client calculatorpb.CalculatorServiceClient) {
-	var first int32 = 10
-	var second int32 = 3
-	resp, err := client.Sum(context.Background(), &calculatorpb.SumRequest{
-		FirstNum:  first,
-		SecondNum: second,
-	})
-	if err != nil {
-		fmt.Printf("calculator response error: %v", err)
-		return
-	}
-	fmt.Printf("%d + %d = %d\n", first, second, resp.GetResult())
-}
-
 func doPrimeNumberDecomposition(client calculatorpb.CalculatorServiceClient) {
 	var i int64 = 12390392840
 	decResp, err := client.PrimeNumberDecomposition(context.Background(), &calculatorpb.PrimeNumberDecompositionRequest{
@@ -78,4 +110,18 @@ func doPrimeNumberDecomposition(client calculatorpb.CalculatorServiceClient) {
 		}
 		log.Printf("%d", result.GetResult())
 	}
+}
+
+func doSum(client calculatorpb.CalculatorServiceClient) {
+	var first int32 = 10
+	var second int32 = 3
+	resp, err := client.Sum(context.Background(), &calculatorpb.SumRequest{
+		FirstNum:  first,
+		SecondNum: second,
+	})
+	if err != nil {
+		fmt.Printf("calculator response error: %v", err)
+		return
+	}
+	fmt.Printf("%d + %d = %d\n", first, second, resp.GetResult())
 }
