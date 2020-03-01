@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"log"
 	calculatorpb "sum-grpc/calculatorpb"
@@ -23,7 +25,39 @@ func main() {
 	// doSum(client)
 	// doPrimeNumberDecomposition(client)
 	// doComputeAverage(client)
-	doFindMaximum(client)
+	// doFindMaximum(client)
+	doErrorUnary(client)
+}
+
+func doErrorUnary(client calculatorpb.CalculatorServiceClient) {
+	var input int32 = 10
+	// correct call
+	doErrorCall(client, input)
+	input = -10
+	// error call
+	doErrorCall(client, input)
+}
+
+func doErrorCall(client calculatorpb.CalculatorServiceClient, input int32) {
+	squareRootResponse, err := client.SquareRoot(context.Background(), &calculatorpb.SquareRootRequest{
+		Number: input,
+	})
+	if err != nil {
+		if errStat, ok := status.FromError(err); ok {
+			// actual error from GRPC (user error)
+			log.Println(errStat.Message())
+			log.Println(errStat.Code())
+			if errStat.Code() == codes.InvalidArgument {
+				log.Fatalf("we probably sent a negative number: %v", errStat.Err())
+			}
+		} else {
+			log.Fatalf(
+				"unspecified error when calculating square root: %v",
+				err,
+			)
+		}
+	}
+	log.Printf("sqrt(%d) = %f", input, squareRootResponse.GetNumberRoot())
 }
 
 func doFindMaximum(client calculatorpb.CalculatorServiceClient) {

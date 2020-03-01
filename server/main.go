@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"log"
 	"math"
@@ -13,7 +15,26 @@ import (
 
 type server struct{}
 
-func (s *server) FindMaximum(stream calculatorpb.CalculatorService_FindMaximumServer) error {
+func (s *server) SquareRoot(
+	ctx context.Context,
+	req *calculatorpb.SquareRootRequest,
+) (*calculatorpb.SquareRootResponse, error) {
+	number := req.GetNumber()
+	if number < 0 {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			"received a negative number: %d",
+			number,
+		)
+	}
+	return &calculatorpb.SquareRootResponse{
+		NumberRoot: math.Sqrt(float64(number)),
+	}, nil
+}
+
+func (s *server) FindMaximum(
+	stream calculatorpb.CalculatorService_FindMaximumServer,
+) error {
 	var max int32 = math.MinInt32
 	for {
 		req, err := stream.Recv()
@@ -21,7 +42,11 @@ func (s *server) FindMaximum(stream calculatorpb.CalculatorService_FindMaximumSe
 			if err == io.EOF {
 				break
 			}
-			return fmt.Errorf("failed to receive next request: %v", err)
+			return status.Errorf(
+				codes.Internal,
+				"failed to receive next request: %v",
+				err,
+			)
 		}
 		log.Printf("client sent %d", req.GetNumber())
 		if max < req.GetNumber() {
@@ -30,14 +55,20 @@ func (s *server) FindMaximum(stream calculatorpb.CalculatorService_FindMaximumSe
 				Maximum: max,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to send new maximum: %v", max)
+				return status.Errorf(
+					codes.Internal,
+					"failed to send new maximum: %v",
+					max,
+				)
 			}
 		}
 	}
 	return nil
 }
 
-func (s *server) ComputeAverage(stream calculatorpb.CalculatorService_ComputeAverageServer) error {
+func (s *server) ComputeAverage(
+	stream calculatorpb.CalculatorService_ComputeAverageServer,
+) error {
 	var nums []int32
 	for {
 		recv, err := stream.Recv()
@@ -47,11 +78,19 @@ func (s *server) ComputeAverage(stream calculatorpb.CalculatorService_ComputeAve
 					Result: average(nums),
 				})
 				if err != nil {
-					return fmt.Errorf("failed to return average: %v", err)
+					return status.Errorf(
+						codes.Internal,
+						"failed to return average: %v",
+						err,
+					)
 				}
 				return nil
 			}
-			return fmt.Errorf("failed to receive request from stream: %v", err)
+			return status.Errorf(
+				codes.Internal,
+				"failed to receive request from stream: %v",
+				err,
+			)
 		}
 		nums = append(nums, recv.GetNumber())
 	}
@@ -85,7 +124,11 @@ func (s *server) PrimeNumberDecomposition(
 				Result: divisor, // this is a factor
 			})
 			if err != nil {
-				return fmt.Errorf("failed to send next prime number in decomposition: %v", err)
+				return status.Errorf(
+					codes.Internal,
+					"failed to send next prime number in decomposition: %v",
+					err,
+				)
 			}
 			n = n / divisor // divide N by divisor so that we have the rest of the number left.
 		} else {
