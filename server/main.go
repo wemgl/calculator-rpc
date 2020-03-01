@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"io"
 	"log"
@@ -143,8 +144,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen on 50051")
 	}
+
 	serv := grpc.NewServer()
 	calculatorpb.RegisterCalculatorServiceServer(serv, &server{})
+
+	reflection.Register(serv)
+
 	if err := serv.Serve(lis); err != nil {
 		fmt.Printf("failed to listen server requests: %v", err)
 	}
